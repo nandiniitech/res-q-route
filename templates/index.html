@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ResQRoute — AI-powered ambulance route optimizer using Dijkstra's algorithm for fastest emergency response." />
+  <title>ResQRoute — Ambulance Route Optimizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+
+<body>
+
+  <!-- Animated background blobs -->
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+  <div class="bg-blob blob-3"></div>
+
+  <div class="page-wrapper">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🚑</span>
+        <span class="logo-text">ResQ<span class="logo-accent">Route</span></span>
+      </div>
+      <div class="header-badge">
+        <span class="pulse-dot"></span>
+        Emergency Mode Active
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <h1 class="hero-title">Fastest Route.<br /><span class="gradient-text">Every Second Counts.</span></h1>
+      <p class="hero-sub">Powered by Dijkstra's Algorithm — computing optimal ambulance paths in real-time.</p>
+    </section>
+
+    <!-- Route Form -->
+    <main class="card form-card">
+      <div class="card-label">Route Planner</div>
+
+      <form method="POST" id="routeForm">
+
+        <div class="form-grid">
+
+          <div class="form-group">
+            <label for="start" class="form-label">
+              <span class="label-icon">📍</span> Ambulance Location
+            </label>
+            <div class="select-wrapper">
+              <select name="start" id="start" required>
+                <option value="" disabled {% if not start %}selected{% endif %}>Select starting point</option>
+                {% for location in locations %}
+                <option value="{{ location }}" {% if location == start %}selected{% endif %}>{{ location }}</option>
+                {% endfor %}
+              </select>
+              <span class="select-arrow">▾</span>
+            </div>
+          </div>
+
+          <div class="form-divider">
+            <span class="divider-icon">⇄</span>
+          </div>
+
+          <div class="form-group">
+            <label for="end" class="form-label">
+              <span class="label-icon">🏥</span> Destination
+            </label>
+            <div class="select-wrapper">
+              <select name="end" id="end" required>
+                <option value="" disabled {% if not end %}selected{% endif %}>Select destination</option>
+                {% for location in locations %}
+                <option value="{{ location }}" {% if location == end %}selected{% endif %}>{{ location }}</option>
+                {% endfor %}
+              </select>
+              <span class="select-arrow">▾</span>
+            </div>
+          </div>
+
+        </div>
+
+        <button type="submit" class="btn-primary" id="findRouteBtn">
+          <span class="btn-icon">⚡</span>
+          Find Shortest Route
+        </button>
+
+      </form>
+    </main>
+
+    <!-- Results -->
+    {% if distance is not none %}
+    <section class="results-section" id="results">
+
+      <div class="stats-row">
+
+        <div class="stat-card stat-distance">
+          <div class="stat-icon">🛣️</div>
+          <div class="stat-value">{{ distance }} <span class="stat-unit">km</span></div>
+          <div class="stat-label">Total Distance</div>
+        </div>
+
+        <div class="stat-card stat-time">
+          <div class="stat-icon">⏱️</div>
+          <div class="stat-value">{{ "%.1f"|format(time) }} <span class="stat-unit">min</span></div>
+          <div class="stat-label">Estimated Time</div>
+        </div>
+
+        <div class="stat-card stat-hops">
+          <div class="stat-icon">📌</div>
+          <div class="stat-value">{{ path|length - 1 }} <span class="stat-unit">hops</span></div>
+          <div class="stat-label">Checkpoints</div>
+        </div>
+
+      </div>
+
+      <div class="card route-card">
+        <div class="card-label">Optimal Route — Dijkstra's Algorithm</div>
+        <div class="route-header">
+          <span class="route-from">{{ start }}</span>
+          <span class="route-arrow-big">→</span>
+          <span class="route-to">{{ end }}</span>
+        </div>
+
+        <div class="route-steps">
+          {% for location in path %}
+          <div class="step {% if loop.first %}step-start{% elif loop.last %}step-end{% else %}step-mid{% endif %}">
+            <div class="step-dot"></div>
+            {% if not loop.last %}<div class="step-line"></div>{% endif %}
+            <div class="step-info">
+              <div class="step-label">{{ location }}</div>
+              <div class="step-badge">
+                {% if loop.first %}ORIGIN
+                {% elif loop.last %}DESTINATION
+                {% else %}WAYPOINT
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+      </div>
+
+      <!-- All Possible Routes -->
+      {% if all_routes and all_routes|length > 1 %}
+      <div class="card all-routes-card">
+        <div class="card-label">All Possible Routes — {{ all_routes|length }} Found</div>
+        <p class="all-routes-subtitle">All simple paths from <strong>{{ start }}</strong> to <strong>{{ end }}</strong>, ranked by distance.</p>
+
+        <div class="all-routes-list">
+          {% for dist, route in all_routes %}
+          <div class="route-item {% if loop.first %}route-item-best{% endif %}">
+            <div class="route-item-rank">
+              {% if loop.first %}
+              <span class="rank-badge rank-best">⚡ FASTEST</span>
+              {% else %}
+              <span class="rank-badge rank-other">#{{ loop.index }}</span>
+              {% endif %}
+            </div>
+            <div class="route-item-path">
+              {% for node in route %}
+                <span class="path-node {% if loop.first %}path-node-start{% elif loop.last %}path-node-end{% endif %}">{{ node }}</span>
+                {% if not loop.last %}<span class="path-sep">→</span>{% endif %}
+              {% endfor %}
+            </div>
+            <div class="route-item-meta">
+              <span class="route-item-dist">🛣️ {{ dist }} km</span>
+              <span class="route-item-time">⏱️ {{ "%.1f"|format((dist / 40) * 60) }} min</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </section>
+    {% endif %}
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>ResQRoute &copy; 2026 &nbsp;·&nbsp; Built with Dijkstra's Shortest Path Algorithm</p>
+    </footer>
+
+  </div>
+
+  <script>
+    const results = document.getElementById('results');
+    if (results) {
+      results.style.opacity = '0';
+      results.style.transform = 'translateY(30px)';
+      requestAnimationFrame(() => {
+        results.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        results.style.opacity = '1';
+        results.style.transform = 'translateY(0)';
+      });
+    }
+
+    document.getElementById('routeForm').addEventListener('submit', function () {
+      const btn = document.getElementById('findRouteBtn');
+      btn.innerHTML = '<span class="btn-icon">⏳</span> Calculating…';
+      btn.disabled = true;
+    });
+  </script>
+
+</body>
+</html>
